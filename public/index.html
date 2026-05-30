@@ -6,7 +6,7 @@
     <title>Vue Live Monitor Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body class="bg-gray-900 text-gray-100 font-sans min-h-screen">
 
@@ -104,16 +104,25 @@
     </div>
 
     <script>
-        const { createApp, ref, onMounted, computed } = Vue;
+       const { createApp, ref, onMounted, computed } = Vue;
 
-        createApp({
-            setup() {
-                // Estados Reativos
-                const logs = ref([]);
-                const pesquisa = ref('');
-                const filtroTipo = ref('TODOS');
-                const containerLogs = ref(null);
-                const socket = io();
+createApp({
+    setup() {
+        // Correção aplicada aqui com o teu domínio real do Railway:
+        const URL_BACKEND = "https://njala-production.up.railway.app";
+
+        // Estados Reativos
+        const logs = ref([]);
+        const pesquisa = ref('');
+        const filtroTipo = ref('TODOS');
+        const containerLogs = ref(null);
+        
+        // Conectando ao Socket.io com a URL correta
+        const socket = io(URL_BACKEND, {
+            transports: ['websocket', 'polling']
+        });
+
+        // ... resto do teu código (carregarHistorico, onMounted, etc.)
 
                 // Métodos utilitários
                 const formatarData = (dataString) => {
@@ -121,12 +130,12 @@
                     return data.toLocaleTimeString('pt-BR') + ' ' + data.toLocaleDateString('pt-BR');
                 };
 
-                // Carregar histórico inicial da API REST do Express
+                // Correção: Buscando o histórico diretamente da API do Railway
                 const carregarHistorico = async () => {
                     try {
-                        const resposta = await fetch('/api/logs');
+                        const resposta = await fetch(`${URL_BACKEND}/api/logs`);
                         const dados = await resposta.json();
-                        logs.value = dados; // O Vue já atualiza a UI automaticamente aqui
+                        logs.value = dados;
                     } catch (erro) {
                         console.error("Erro ao buscar histórico do banco:", erro);
                     }
@@ -137,17 +146,15 @@
                     carregarHistorico();
 
                     socket.on('novo-log', (novoLog) => {
-                        // Insere o novo log direto no início do array de forma reativa
                         logs.value.unshift(novoLog);
                         
-                        // Scroll suave automático para o topo do container se houver nova atividade
                         if (containerLogs.value) {
                             containerLogs.value.scrollTop = 0;
                         }
                     });
                 });
 
-                // Propriedades Computadas (Filtros instantâneos de performance)
+                // Propriedades Computadas
                 const logsFiltrados = computed(() => {
                     return logs.value.filter(log => {
                         const bateTipo = filtroTipo.value === 'TODOS' || log.tipo === filtroTipo.value;
