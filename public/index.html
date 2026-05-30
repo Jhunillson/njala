@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vue Live Monitor Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans min-h-screen">
+
+    <div id="app" v-cloak>
+        <header class="bg-gray-800 border-b border-gray-700 p-4 sticky top-0 z-50 shadow-md">
+            <div class="max-w-7xl mx-auto flex justify-between items-center">
+                <div class="flex items-center space-x-3">
+                    <span class="flex h-3 w-3 relative">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                    </span>
+                    <h1 class="text-xl font-bold tracking-wide text-white">VUE LIVE MONITORING</h1>
+                </div>
+                <div class="text-sm text-gray-400 flex items-center space-x-4">
+                    <div>Status: <span class="text-green-400 font-semibold">Stream Ativa</span></div>
+                    <div class="bg-gray-700 px-3 py-1 rounded text-xs text-gray-300">
+                        Total no Banco: <span class="text-blue-400 font-bold">{{ logs.length }}</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-gray-800 p-4 rounded-lg border border-gray-700 shadow flex justify-between items-center cursor-pointer hover:border-blue-500 transition" @click="filtroTipo = 'TODOS'">
+                    <div>
+                        <p class="text-gray-400 text-xs font-bold uppercase tracking-wider">Todos os Logs</p>
+                        <h3 class="text-2xl font-bold mt-1 text-white">{{ logs.length }}</h3>
+                    </div>
+                    <div class="p-3 bg-blue-600/20 text-blue-400 rounded-full">📁</div>
+                </div>
+                <div class="bg-gray-800 p-4 rounded-lg border border-gray-700 shadow flex justify-between items-center cursor-pointer hover:border-green-500 transition" @click="filtroTipo = 'SMS_RECEBIDO'">
+                    <div>
+                        <p class="text-gray-400 text-xs font-bold uppercase tracking-wider">Mensagens SMS</p>
+                        <h3 class="text-2xl font-bold mt-1 text-green-400">{{ totalSms }}</h3>
+                    </div>
+                    <div class="p-3 bg-green-600/20 text-green-400 rounded-full">💬</div>
+                </div>
+                <div class="bg-gray-800 p-4 rounded-lg border border-gray-700 shadow flex justify-between items-center cursor-pointer hover:border-emerald-500 transition" @click="filtroTipo = 'WHATSAPP_CONVERSA'">
+                    <div>
+                        <p class="text-gray-400 text-xs font-bold uppercase tracking-wider">Telas WhatsApp</p>
+                        <h3 class="text-2xl font-bold mt-1 text-emerald-400">{{ totalWhatsApp }}</h3>
+                    </div>
+                    <div class="p-3 bg-emerald-600/20 text-emerald-400 rounded-full">📱</div>
+                </div>
+            </div>
+
+            <div class="bg-gray-800 border border-gray-700 rounded-lg shadow-xl overflow-hidden">
+                <div class="bg-gray-800 px-5 py-4 border-b border-gray-700 flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-2 sm:space-y-0">
+                    <div class="flex items-center space-x-2">
+                        <h2 class="text-lg font-semibold text-gray-200">Stream de Atividades</h2>
+                        <span v-if="filtroTipo !== 'TODOS'" class="text-xs bg-gray-700 px-2 py-0.5 rounded text-yellow-400 font-mono">
+                            Filtrado por: {{ filtroTipo }}
+                        </span>
+                    </div>
+                    <input 
+                        v-model="pesquisa" 
+                        type="text" 
+                        placeholder="Buscar por origem ou mensagem..." 
+                        class="bg-gray-900 border border-gray-700 text-sm px-4 py-1.5 rounded-lg w-full sm:w-64 focus:outline-none focus:border-blue-500 text-white"
+                    />
+                </div>
+
+                <div class="p-4 space-y-3 max-h-[65vh] overflow-y-auto font-mono text-sm" ref="containerLogs">
+                    
+                    <div v-if="logsFiltrados.length === 0" class="text-center py-12 text-gray-500 italic">
+                        Nenhum log encontrado para os critérios selecionados...
+                    </div>
+
+                    <div 
+                        v-for="log in logsFiltrados" 
+                        :key="log.id" 
+                        class="p-4 bg-gray-750 border-l-4 rounded shadow-sm flex flex-col md:flex-row md:items-center justify-between space-y-2 md:space-y-0 transition-all duration-300 hover:bg-gray-700"
+                        :class="log.tipo.includes('SMS') ? 'border-green-500 bg-gray-800/50' : 'border-emerald-500 bg-gray-800/30'"
+                    >
+                        <div class="flex-1 pr-4">
+                            <div class="flex items-center space-x-2 text-xs text-gray-400 mb-1">
+                                <span class="px-2 py-0.5 bg-gray-900 rounded text-gray-300 font-bold tracking-wider">{{ log.tipo }}</span>
+                                <span>•</span>
+                                <span class="text-gray-500">ID: #{{ log.id }}</span>
+                                <span>•</span>
+                                <span>{{ formatarData(log.criado_em) }}</span>
+                            </div>
+                            <div class="text-xs text-blue-400 font-semibold mb-1">
+                                Origem: <span class="text-white font-mono bg-gray-900 px-1.5 py-0.5 rounded text-xs">{{ log.origem }}</span>
+                            </div>
+                            <div class="text-gray-200 text-sm whitespace-pre-wrap">{{ log.mensagem }}</div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted, computed } = Vue;
+
+        createApp({
+            setup() {
+                // Estados Reativos
+                const logs = ref([]);
+                const pesquisa = ref('');
+                const filtroTipo = ref('TODOS');
+                const containerLogs = ref(null);
+                const socket = io();
+
+                // Métodos utilitários
+                const formatarData = (dataString) => {
+                    const data = new Date(dataString);
+                    return data.toLocaleTimeString('pt-BR') + ' ' + data.toLocaleDateString('pt-BR');
+                };
+
+                // Carregar histórico inicial da API REST do Express
+                const carregarHistorico = async () => {
+                    try {
+                        const resposta = await fetch('/api/logs');
+                        const dados = await resposta.json();
+                        logs.value = dados; // O Vue já atualiza a UI automaticamente aqui
+                    } catch (erro) {
+                        console.error("Erro ao buscar histórico do banco:", erro);
+                    }
+                };
+
+                // Escutar eventos via WebSocket
+                onMounted(() => {
+                    carregarHistorico();
+
+                    socket.on('novo-log', (novoLog) => {
+                        // Insere o novo log direto no início do array de forma reativa
+                        logs.value.unshift(novoLog);
+                        
+                        // Scroll suave automático para o topo do container se houver nova atividade
+                        if (containerLogs.value) {
+                            containerLogs.value.scrollTop = 0;
+                        }
+                    });
+                });
+
+                // Propriedades Computadas (Filtros instantâneos de performance)
+                const logsFiltrados = computed(() => {
+                    return logs.value.filter(log => {
+                        const bateTipo = filtroTipo.value === 'TODOS' || log.tipo === filtroTipo.value;
+                        const batePesquisa = log.origem.toLowerCase().includes(pesquisa.value.toLowerCase()) || 
+                                             log.mensagem.toLowerCase().includes(pesquisa.value.toLowerCase());
+                        return bateTipo && batePesquisa;
+                    });
+                });
+
+                const totalSms = computed(() => logs.value.filter(l => l.tipo.includes('SMS')).length);
+                const totalWhatsApp = computed(() => logs.value.filter(l => l.tipo.includes('WHATSAPP')).length);
+
+                return {
+                    logs,
+                    pesquisa,
+                    filtroTipo,
+                    containerLogs,
+                    logsFiltrados,
+                    totalSms,
+                    totalWhatsApp,
+                    formatarData
+                };
+            }
+        }).mount('#app');
+    </script>
+
+    <style>
+        [v-cloak] { display: none !important; }
+        .bg-gray-750 { background-color: #232d3f; }
+    </style>
+</body>
+</html>
