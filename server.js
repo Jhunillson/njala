@@ -3,14 +3,23 @@ const { Pool } = require('pg');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const cors = require('cors'); // 👈 1. Importa o módulo CORS
 
 const app = express();
 const server = http.createServer(app); 
-const io = new Server(server);         
 
-// 💡 CONFIGURAÇÃO DA PORTA UNIFICADA (Sem duplicações)
+// 👈 2. CONFIGURAÇÃO DO CORS NO SOCKET.IO (Essencial para a Vercel conectar)
+const io = new Server(server, {
+    cors: {
+        origin: "*", // Em produção, podes trocar "*" pela URL da tua Vercel para maior segurança
+        methods: ["GET", "POST"]
+    }
+});         
+
 const PORT = process.env.PORT || 3000;
 
+// 👈 3. ATIVA O CORS PARA AS ROTAS HTTP (Permite que o fetch/axios da Vercel funcione)
+app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -22,7 +31,6 @@ const pool = new Pool({
     database: process.env.PGDATABASE || 'postgres',
     password: process.env.PGPASSWORD || '',
     port: process.env.PGPORT || 5432,
-    // Ativa o SSL apenas quando estiver rodando na nuvem (Railway)
     ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
@@ -108,5 +116,5 @@ io.on('connection', (socket) => {
 
 // Inicialização estável do servidor
 server.listen(PORT, () => {
-    console.log(`🚀 Servidor e WebApp rodando em http://localhost:${PORT}`);
+    console.log(`🚀 Servidor e WebApp rodando na porta ${PORT}`);
 });
